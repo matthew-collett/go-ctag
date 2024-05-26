@@ -1,15 +1,17 @@
+project_name: ctag
+
 release:
   github:
     owner: matthew-collett
     name: go-ctag
-    draft: true
+  draft: true
 
-archive:
-  name_template: '{{ .ProjectName }}_{{ .Version }}'
-  format: tar.gz
-  files:
-    - LICENSE
-    - README.md
-    - go.mod
-    - go.sum
-    - '**/*.go'
+archives:
+  - name_template: '{{ .ProjectName }}_{{ .Version }}'
+    format: tar.gz
+    files:
+      - LICENSE
+      - README.md
+      - go.mod
+      - go.sum
+      - '**/*.go'
