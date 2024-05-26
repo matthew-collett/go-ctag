@@ -4,7 +4,7 @@ release:
   github:
     owner: matthew-collett
     name: go-ctag
-  draft: true
+  draft: false
 
 builds:
   - skip: true
