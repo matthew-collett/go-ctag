@@ -1,0 +1,15 @@
+release:
+  github:
+    owner: matthew-collett
+    name: go-ctag
+    draft: true
+
+archive:
+  format: tar.gz
+  files:
+    - LICENSE
+    - README.md
+    - go.mod
+    - go.sum
+    - **/*.go
+
