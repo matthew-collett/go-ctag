@@ -1,9 +1,10 @@
 <p align="center">
   <h1 align="center">Go CTag</h1>
   <p align="center">Custom struct tags in Go</p>
-  <p align="center">
-    <a href="https://github.com/matthew-collett/go-ctag/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/release/matthew-collett/go-ctag.svg?logo=github"></a>
-    <a href="https://github.com/matthew-collett/go-ctag/actions?workflow=ci"><img alt="Test workflow" src="https://img.shields.io/github/actions/workflow/status/matthew-collett/go-ctag/.github%2Fworkflows%2Fci.yml?branch=main&label=tests"></a>
+  <p align="center"> 
+    <a href="https://pkg.go.dev/github.com/matthew-collett/go-ctag/ctag"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/matthew-collett/go-ctag.svg"></a>
+    <a href="https://github.com/matthew-collett/go-ctag/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/release/matthew-collett/go-ctag.svg?logo=github&color=red"></a>
+    <a href="https://github.com/matthew-collett/go-ctag/actions?workflow=ci"><img alt="Test workflow" src="https://img.shields.io/github/actions/workflow/status/matthew-collett/go-ctag/.github%2Fworkflows%2Fci.yml?label=tests&logo=github"></a>
     <a href="https://github.com/matthew-collett/go-ctag/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/matthew-collett/go-ctag?label=license&color=yellow"></a>
   </p>
 </p>
