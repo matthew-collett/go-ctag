@@ -70,7 +70,7 @@ if err != nil {
 ```
 </details>
 
-Take a look at the [GoDoc](https://pkg.go.dev/github.com/matthew-collett/go-ctag) for more details.
+Take a look at the [GoDoc](https://pkg.go.dev/github.com/matthew-collett/go-ctag/ctag) for more details.
 
 ## Overview of CTag and CTags
 
