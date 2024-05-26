@@ -1,5 +1,13 @@
-# go-ctag #
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/matthew-collett/go-ctag/.github%2Fworkflows%2Fci.yml?branch=main&label=Tests)
+<p align="center">
+  <h1 align="center">Go CTag</h1>
+  <p align="center">Custom struct tags in Go</p>
+  <p align="center">
+    <a href="https://github.com/matthew-collett/go-ctag/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/release/matthew-collett/go-ctag.svg?logo=github"></a>
+    <a href="https://github.com/matthew-collett/go-ctag/actions?workflow=ci"><img alt="Test workflow" src="https://img.shields.io/github/actions/workflow/status/matthew-collett/go-ctag/.github%2Fworkflows%2Fci.yml?branch=main&label=tests"></a>
+    <a href="https://github.com/matthew-collett/go-ctag/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/matthew-collett/go-ctag?label=license&color=blue"></a>
+  </p>
+</p>
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/matthew-collett/go-ctag/.github%2Fworkflows%2Fci.yml?branch=main&label=tests)
 ![GitHub License](https://img.shields.io/github/license/matthew-collett/go-ctag?label=License&color=blue)
 
 The `ctag` package provides utilities for extracting and processing custom struct tags in Go. It supports fetching tags based on specific criteria and applying custom processing through user-defined functions.
