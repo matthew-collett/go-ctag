@@ -5,11 +5,11 @@ release:
     draft: true
 
 archive:
+  name_template: '{{ .ProjectName }}_{{ .Version }}'
   format: tar.gz
   files:
     - LICENSE
     - README.md
     - go.mod
     - go.sum
-    - **/*.go
-
+    - '**/*.go'
