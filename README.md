@@ -1,5 +1,6 @@
 # go-ctag #
-![Test Status](https://github.com/matthew-collett/go-ctag/workflows/ci/badge.svg)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/matthew-collett/go-ctag/.github%2Fworkflows%2Fci.yml?branch=main&label=Tests)
+![GitHub License](https://img.shields.io/github/license/matthew-collett/go-ctag?label=License&color=blue)
 
 The `ctag` package provides utilities for extracting and processing custom struct tags in Go. It supports fetching tags based on specific criteria and applying custom processing through user-defined functions.
 
