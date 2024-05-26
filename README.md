@@ -1,4 +1,5 @@
-# go-ctag
+# go-ctag #
+![Test Status](https://github.com/matthew-collett/go-ctag/workflows/ci/badge.svg)
 
 The `ctag` package provides utilities for extracting and processing custom struct tags in Go. It supports fetching tags based on specific criteria and applying custom processing through user-defined functions.
 
@@ -14,7 +15,7 @@ The `ctag` package provides utilities for extracting and processing custom struc
 Install `ctag` using `go get`:
 
 ```bash
-```go get github.com/matthew-collett/ctag```
+go get -u github.com/matthew-collett/ctag
 ```
 
 ## Usage
@@ -22,7 +23,7 @@ Install `ctag` using `go get`:
 <details>
 <summary>Extracting Tags</summary>
 
-### You can extract tags from a struct with or without additional processing:
+ You can extract tags from a struct with or without additional processing:
 ```go
 data := ExampleStruct{
     Field1: "value1",
