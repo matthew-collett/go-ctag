@@ -6,6 +6,9 @@ release:
     name: go-ctag
   draft: true
 
+builds:
+  - skip: true
+
 archives:
   - name_template: '{{ .ProjectName }}_{{ .Version }}'
     format: tar.gz
