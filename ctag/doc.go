@@ -10,25 +10,25 @@
 //	type Request struct {
 //	    IDs []string `body:"text,comma,omitempty"`
 //	}
-//  
-//  request := Request{
-//     IDs: []string{"1", "2", "3"}
-//  }
 //
-//	tag, _ := ctag.GetTags("body", request)
+//	request := Request{
+//	    IDs: []string{"1", "2", "3"}
+//	}
+//
+// tag, _ := ctag.GetTags("body", request)
 //
 // Custom processors can implement the TagProcessor interface:
 //
-//	type Processor struct{}
+// type Processor struct{}
 //
 //	func (p *Processor) Process(field any, tag *ctag.CTag) error {
 //	    // Custom processing logic here
 //	    return nil
 //	}
-// 
-//  request := Request{
-//     IDs: []string{"1", "2", "3"}
-//  }
 //
-//	tags, _ := ctag.GetTagsAndProcess("body", request, &Processor{})
+//	request := Request{
+//	    IDs: []string{"1", "2", "3"}
+//	}
+//
+// tags, _ := ctag.GetTagsAndProcess("body", request, &Processor{})
 package ctag

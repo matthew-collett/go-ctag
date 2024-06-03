@@ -36,7 +36,7 @@ You can extract tags from a struct with or without additional processing:
 import "github.com/matthew-collett/go-ctag/ctag"
 
 type Request struct {
-    IDs []int `body:"text,omitempty"`
+    IDs []int           `body:"text,omitempty"`
     WithAttributes bool `query:"url"`
 }
 
@@ -71,7 +71,7 @@ func (p *Processor) Process(field any, tag *ctag.CTag) error {
 processor := &Processor{}
 
 type Request struct {
-    IDs []int `body:"text,omitempty"`
+    IDs []int           `body:"text,omitempty"`
     WithAttributes bool `query:"url"`
 }
 
