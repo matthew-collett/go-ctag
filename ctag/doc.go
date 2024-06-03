@@ -5,20 +5,30 @@
 //
 // Example usage:
 //
+// import "github.com/matthew-collett/go-ctag/ctag"
+//
 //	type Request struct {
 //	    IDs []string `body:"text,comma,omitempty"`
 //	}
+//  
+//  request := Request{
+//     IDs: []string{"1", "2", "3"}
+//  }
 //
-//	tag, _ := ctag.GetTags("body", Request{IDs: []string{"id1", "id2"}})
+//	tag, _ := ctag.GetTags("body", request)
 //
 // Custom processors can implement the TagProcessor interface:
 //
-//	type MyProcessor struct{}
+//	type Processor struct{}
 //
-//	func (p *MyProcessor) Process(field any, tag *ctag.CTag) error {
+//	func (p *Processor) Process(field any, tag *ctag.CTag) error {
 //	    // Custom processing logic here
 //	    return nil
 //	}
+// 
+//  request := Request{
+//     IDs: []string{"1", "2", "3"}
+//  }
 //
-//	tags, _ := ctag.GetTagsAndProcess("body", Request{IDs: []string{"id1", "id2"}}, &MyProcessor{})
+//	tags, _ := ctag.GetTagsAndProcess("body", request, &Processor{})
 package ctag
