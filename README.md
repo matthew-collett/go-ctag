@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">Go CTag</h1>
   <p align="center">
-    <img src="./assets/logo.svg" width="200" />
+    <img src="./assets/logo.svg" width="300" />
   </p>
   
   <p align="center">Custom struct tags in Go</p>
