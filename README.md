@@ -1,5 +1,9 @@
 <p align="center">
   <h1 align="center">Go CTag</h1>
+  <p align="center">
+    <img src="./assets/logo.svg" width="300" />
+  </p>
+  
   <p align="center">Custom struct tags in Go</p>
   <p align="center"> 
     <a href="https://pkg.go.dev/github.com/matthew-collett/go-ctag/ctag" target="_blank"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/matthew-collett/go-ctag.svg"></a>
