@@ -603,6 +603,17 @@ func (p *testProcessor) Process(field any, tag *CTag) error {
 	return nil
 }
 
+type setFieldProcessor struct{}
+
+func (p *setFieldProcessor) Process(field any, tag *CTag) error {
+	// Test that SetField works with the field pointer
+	// Only process the "name" field to avoid type conflicts
+	if tag.Name == "name" {
+		return SetField(field, "test_value")
+	}
+	return nil
+}
+
 func TestSetField(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -973,6 +984,40 @@ func TestSetFieldNumericConversions(t *testing.T) {
 			fieldVal := reflect.ValueOf(tt.field).Elem()
 			actual := fieldVal.Interface()
 			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestSetFieldWithProcessor(t *testing.T) {
+	type TestStruct struct {
+		Name string `test:"name"`
+		Age  int    `test:"age"`
+	}
+
+	tests := []struct {
+		name     string
+		input    TestStruct
+		expected TestStruct
+	}{
+		{
+			name:     "string field",
+			input:    TestStruct{Name: "original", Age: 25},
+			expected: TestStruct{Name: "test_value", Age: 25},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			processor := &setFieldProcessor{}
+			
+			// Process only the "name" tag
+			_, err := GetTagsAndProcess("test", &tt.input, processor)
+			assert.NoError(t, err)
+			
+			// Check that the Name field was modified to "test_value"
+			assert.Equal(t, "test_value", tt.input.Name)
+			// Check that Age field was not modified (no "age" tag processed)
+			assert.Equal(t, 25, tt.input.Age)
 		})
 	}
 }

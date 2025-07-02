@@ -117,6 +117,7 @@ func (p *QueryProcessor) Process(field any, tag *ctag.CTag) error {
         return nil
     }
     // SetField automatically converts the string to the appropriate type
+    // field is already a pointer to the struct field
     return ctag.SetField(field, value)
 }
 
