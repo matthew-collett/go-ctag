@@ -3,6 +3,7 @@ package ctag
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -306,6 +307,283 @@ func AssertFieldType[T any](tag *CTag) (*CTag, error) {
 func (t *CTag) String() string {
 	options := strings.Join(t.Options, ", ")
 	return fmt.Sprintf("CTag(Key=%s, Name=%s, Options=[%s], Field=%+v)", t.Key, t.Name, options, t.Field)
+}
+
+// SetField attempts to convert a value to the appropriate type and set it on the field pointer.
+// This helper function reduces boilerplate code in TagProcessor implementations by handling
+// common type conversions automatically.
+//
+// The field parameter should be a pointer to the actual struct field (same as TagProcessor.Process receives).
+// The value parameter can be any type - the function will attempt to convert it to match the field's type.
+//
+// Supported conversions:
+//   - String to any basic type (int, float, bool, etc.)
+//   - Numeric types to other numeric types
+//   - Any type to string via fmt.Sprintf
+//   - Slice and map types (direct assignment if types match)
+//   - Pointer types (allocates new pointer if needed)
+//   - Interface types (direct assignment)
+//
+// Parameters:
+//
+//	field - a pointer to the struct field to set (must be a pointer)
+//	value - the value to convert and assign to the field
+//
+// Returns:
+//
+//	An error if the conversion fails or if field is not a pointer.
+//
+// Example usage:
+//
+//	type QueryProcessor struct {
+//	    req *http.Request
+//	}
+//
+//	func (p *QueryProcessor) Process(field any, tag *CTag) error {
+//	    value := p.req.URL.Query().Get(tag.Name)
+//	    if value == "" {
+//	        return nil
+//	    }
+//	    return ctag.SetField(field, value)
+//	}
+//
+//	// Instead of writing 20+ type cases manually:
+//	switch f := field.(type) {
+//	case *string:
+//	    *f = value
+//	case *int:
+//	    intVal, err := strconv.Atoi(value)
+//	    // ... handle error and assignment
+//	// ... 18+ more cases
+//	}
+func SetField(field any, value any) error {
+	fieldVal := reflect.ValueOf(field)
+	if fieldVal.Kind() != reflect.Ptr {
+		return fmt.Errorf("ctag: field must be a pointer, got %T", field)
+	}
+
+	if fieldVal.IsNil() {
+		return fmt.Errorf("ctag: field pointer is nil")
+	}
+
+	fieldElem := fieldVal.Elem()
+	if !fieldElem.CanSet() {
+		return fmt.Errorf("ctag: field is not settable")
+	}
+
+	return setValue(fieldElem, value)
+}
+
+// setValue handles the actual type conversion and assignment
+func setValue(fieldVal reflect.Value, value any) error {
+	if value == nil {
+		// Set to zero value for the type
+		fieldVal.Set(reflect.Zero(fieldVal.Type()))
+		return nil
+	}
+
+	valueVal := reflect.ValueOf(value)
+	fieldType := fieldVal.Type()
+
+	// Direct assignment if types match
+	if valueVal.Type().AssignableTo(fieldType) {
+		fieldVal.Set(valueVal)
+		return nil
+	}
+
+	// Handle pointer types
+	if fieldType.Kind() == reflect.Ptr {
+		return setPointerValue(fieldVal, value)
+	}
+
+	// Handle interface types
+	if fieldType.Kind() == reflect.Interface {
+		fieldVal.Set(valueVal)
+		return nil
+	}
+
+	// Handle slice types
+	if fieldType.Kind() == reflect.Slice {
+		return setSliceValue(fieldVal, value)
+	}
+
+	// Handle map types
+	if fieldType.Kind() == reflect.Map {
+		if valueVal.Type().AssignableTo(fieldType) {
+			fieldVal.Set(valueVal)
+			return nil
+		}
+		return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldType)
+	}
+
+	// Convert from string
+	if valueVal.Kind() == reflect.String {
+		return setFromString(fieldVal, valueVal.String())
+	}
+
+	// Convert between numeric types
+	if isNumeric(valueVal.Kind()) && isNumeric(fieldType.Kind()) {
+		return setNumericValue(fieldVal, valueVal)
+	}
+
+	// Convert any type to string
+	if fieldType.Kind() == reflect.String {
+		fieldVal.SetString(fmt.Sprintf("%v", value))
+		return nil
+	}
+
+	return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldType)
+}
+
+// setPointerValue handles setting pointer field values
+func setPointerValue(fieldVal reflect.Value, value any) error {
+	fieldType := fieldVal.Type()
+	elemType := fieldType.Elem()
+
+	// Create new pointer if field is nil
+	if fieldVal.IsNil() {
+		newPtr := reflect.New(elemType)
+		fieldVal.Set(newPtr)
+	}
+
+	return setValue(fieldVal.Elem(), value)
+}
+
+// setSliceValue handles setting slice field values
+func setSliceValue(fieldVal reflect.Value, value any) error {
+	valueVal := reflect.ValueOf(value)
+
+	// Direct assignment if types match
+	if valueVal.Type().AssignableTo(fieldVal.Type()) {
+		fieldVal.Set(valueVal)
+		return nil
+	}
+
+	// Convert string to slice (comma-separated)
+	if valueVal.Kind() == reflect.String {
+		return setSliceFromString(fieldVal, valueVal.String())
+	}
+
+	// Convert single value to slice
+	elemType := fieldVal.Type().Elem()
+	if valueVal.Type().AssignableTo(elemType) {
+		slice := reflect.MakeSlice(fieldVal.Type(), 1, 1)
+		slice.Index(0).Set(valueVal)
+		fieldVal.Set(slice)
+		return nil
+	}
+
+	return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldVal.Type())
+}
+
+// setSliceFromString converts a comma-separated string to a slice
+func setSliceFromString(fieldVal reflect.Value, str string) error {
+	if str == "" {
+		fieldVal.Set(reflect.MakeSlice(fieldVal.Type(), 0, 0))
+		return nil
+	}
+
+	parts := strings.Split(str, ",")
+	slice := reflect.MakeSlice(fieldVal.Type(), len(parts), len(parts))
+
+	for i, part := range parts {
+		part = strings.TrimSpace(part)
+		elem := slice.Index(i)
+		if err := setValue(elem, part); err != nil {
+			return fmt.Errorf("ctag: error converting slice element %d: %w", i, err)
+		}
+	}
+
+	fieldVal.Set(slice)
+	return nil
+}
+
+// setFromString converts a string value to the target field type
+func setFromString(fieldVal reflect.Value, str string) error {
+	switch fieldVal.Kind() {
+	case reflect.String:
+		fieldVal.SetString(str)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		val, err := strconv.ParseInt(str, 10, 64)
+		if err != nil {
+			return fmt.Errorf("ctag: cannot parse %q as int: %w", str, err)
+		}
+		fieldVal.SetInt(val)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		val, err := strconv.ParseUint(str, 10, 64)
+		if err != nil {
+			return fmt.Errorf("ctag: cannot parse %q as uint: %w", str, err)
+		}
+		fieldVal.SetUint(val)
+	case reflect.Float32, reflect.Float64:
+		val, err := strconv.ParseFloat(str, 64)
+		if err != nil {
+			return fmt.Errorf("ctag: cannot parse %q as float: %w", str, err)
+		}
+		fieldVal.SetFloat(val)
+	case reflect.Bool:
+		val, err := strconv.ParseBool(str)
+		if err != nil {
+			return fmt.Errorf("ctag: cannot parse %q as bool: %w", str, err)
+		}
+		fieldVal.SetBool(val)
+	default:
+		return fmt.Errorf("ctag: cannot convert string to %v", fieldVal.Type())
+	}
+	return nil
+}
+
+// setNumericValue converts between numeric types
+func setNumericValue(fieldVal reflect.Value, valueVal reflect.Value) error {
+	switch fieldVal.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		switch valueVal.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			fieldVal.SetInt(valueVal.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			fieldVal.SetInt(int64(valueVal.Uint()))
+		case reflect.Float32, reflect.Float64:
+			fieldVal.SetInt(int64(valueVal.Float()))
+		default:
+			return fmt.Errorf("ctag: cannot convert %v to %v", valueVal.Type(), fieldVal.Type())
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		switch valueVal.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			fieldVal.SetUint(uint64(valueVal.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			fieldVal.SetUint(valueVal.Uint())
+		case reflect.Float32, reflect.Float64:
+			fieldVal.SetUint(uint64(valueVal.Float()))
+		default:
+			return fmt.Errorf("ctag: cannot convert %v to %v", valueVal.Type(), fieldVal.Type())
+		}
+	case reflect.Float32, reflect.Float64:
+		switch valueVal.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			fieldVal.SetFloat(float64(valueVal.Int()))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			fieldVal.SetFloat(float64(valueVal.Uint()))
+		case reflect.Float32, reflect.Float64:
+			fieldVal.SetFloat(valueVal.Float())
+		default:
+			return fmt.Errorf("ctag: cannot convert %v to %v", valueVal.Type(), fieldVal.Type())
+		}
+	default:
+		return fmt.Errorf("ctag: unsupported numeric type %v", fieldVal.Type())
+	}
+	return nil
+}
+
+// isNumeric checks if a reflect.Kind represents a numeric type
+func isNumeric(k reflect.Kind) bool {
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
 }
 
 // getTags is a helper function that recursively fetches and optionally processes tags from struct fields.

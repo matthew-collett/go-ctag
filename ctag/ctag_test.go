@@ -1,6 +1,7 @@
 package ctag
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -600,4 +601,378 @@ type testProcessor struct{}
 func (p *testProcessor) Process(field any, tag *CTag) error {
 	tag.Name = "processed_" + tag.Name
 	return nil
+}
+
+func TestSetField(t *testing.T) {
+	tests := []struct {
+		name        string
+		field       any
+		value       any
+		expected    any
+		expectError bool
+		errorMsg    string
+	}{
+		// Basic string operations
+		{
+			name:     "string to string",
+			field:    func() any { var s string; return &s }(),
+			value:    "hello",
+			expected: "hello",
+		},
+		{
+			name:     "int to string",
+			field:    func() any { var s string; return &s }(),
+			value:    42,
+			expected: "42",
+		},
+		{
+			name:     "bool to string",
+			field:    func() any { var s string; return &s }(),
+			value:    true,
+			expected: "true",
+		},
+
+		// Basic numeric operations
+		{
+			name:     "string to int",
+			field:    func() any { var i int; return &i }(),
+			value:    "42",
+			expected: 42,
+		},
+		{
+			name:     "int to int",
+			field:    func() any { var i int; return &i }(),
+			value:    42,
+			expected: 42,
+		},
+		{
+			name:     "float to int",
+			field:    func() any { var i int; return &i }(),
+			value:    42.7,
+			expected: 42,
+		},
+		{
+			name:     "string to float",
+			field:    func() any { var f float64; return &f }(),
+			value:    "3.14",
+			expected: 3.14,
+		},
+		{
+			name:     "int to float",
+			field:    func() any { var f float64; return &f }(),
+			value:    42,
+			expected: 42.0,
+		},
+
+		// Boolean operations
+		{
+			name:     "string true to bool",
+			field:    func() any { var b bool; return &b }(),
+			value:    "true",
+			expected: true,
+		},
+		{
+			name:     "string false to bool",
+			field:    func() any { var b bool; return &b }(),
+			value:    "false",
+			expected: false,
+		},
+		{
+			name:     "string 1 to bool",
+			field:    func() any { var b bool; return &b }(),
+			value:    "1",
+			expected: true,
+		},
+
+		// Pointer operations
+		{
+			name:     "string to string pointer",
+			field:    func() any { var s *string; return &s }(),
+			value:    "hello",
+			expected: func() *string { s := "hello"; return &s }(),
+		},
+		{
+			name:     "int to int pointer",
+			field:    func() any { var i *int; return &i }(),
+			value:    42,
+			expected: func() *int { i := 42; return &i }(),
+		},
+		{
+			name:     "string to int pointer",
+			field:    func() any { var i *int; return &i }(),
+			value:    "42",
+			expected: func() *int { i := 42; return &i }(),
+		},
+
+		// Slice operations
+		{
+			name:     "string slice to string slice",
+			field:    func() any { var s []string; return &s }(),
+			value:    []string{"a", "b", "c"},
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "comma-separated string to string slice",
+			field:    func() any { var s []string; return &s }(),
+			value:    "a,b,c",
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "comma-separated string to int slice",
+			field:    func() any { var s []int; return &s }(),
+			value:    "1,2,3",
+			expected: []int{1, 2, 3},
+		},
+		{
+			name:     "single value to slice",
+			field:    func() any { var s []string; return &s }(),
+			value:    "single",
+			expected: []string{"single"},
+		},
+		{
+			name:     "empty string to slice",
+			field:    func() any { var s []string; return &s }(),
+			value:    "",
+			expected: []string{},
+		},
+
+		// Map operations
+		{
+			name:     "map to map",
+			field:    func() any { var m map[string]string; return &m }(),
+			value:    map[string]string{"key": "value"},
+			expected: map[string]string{"key": "value"},
+		},
+
+		// Interface operations
+		{
+			name:     "any to interface",
+			field:    func() any { var i interface{}; return &i }(),
+			value:    "hello",
+			expected: "hello",
+		},
+
+		// Nil value operations
+		{
+			name:     "nil to string",
+			field:    func() any { var s string; return &s }(),
+			value:    nil,
+			expected: "",
+		},
+		{
+			name:     "nil to int",
+			field:    func() any { var i int; return &i }(),
+			value:    nil,
+			expected: 0,
+		},
+		{
+			name:     "nil to pointer",
+			field:    func() any { var s *string; return &s }(),
+			value:    nil,
+			expected: (*string)(nil),
+		},
+
+		// Error cases
+		{
+			name:        "non-pointer field",
+			field:       "not a pointer",
+			value:       "hello",
+			expectError: true,
+			errorMsg:    "field must be a pointer",
+		},
+		{
+			name:        "nil pointer field",
+			field:       (*string)(nil),
+			value:       "hello",
+			expectError: true,
+			errorMsg:    "field pointer is nil",
+		},
+		{
+			name:        "invalid string to int",
+			field:       func() any { var i int; return &i }(),
+			value:       "not a number",
+			expectError: true,
+			errorMsg:    "cannot parse",
+		},
+		{
+			name:        "invalid string to bool",
+			field:       func() any { var b bool; return &b }(),
+			value:       "not a bool",
+			expectError: true,
+			errorMsg:    "cannot parse",
+		},
+		{
+			name:        "invalid string to float",
+			field:       func() any { var f float64; return &f }(),
+			value:       "not a float",
+			expectError: true,
+			errorMsg:    "cannot parse",
+		},
+		{
+			name:        "incompatible map types",
+			field:       func() any { var m map[string]string; return &m }(),
+			value:       map[int]int{1: 2},
+			expectError: true,
+			errorMsg:    "cannot convert",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetField(tt.field, tt.value)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+				return
+			}
+
+			assert.NoError(t, err)
+
+			// Get the actual value from the field
+			fieldVal := reflect.ValueOf(tt.field).Elem()
+			actual := fieldVal.Interface()
+
+			// Special handling for pointer comparisons
+			if fieldVal.Kind() == reflect.Ptr && fieldVal.IsNil() {
+				assert.Nil(t, tt.expected)
+			} else if fieldVal.Kind() == reflect.Ptr && !fieldVal.IsNil() {
+				expectedPtr := reflect.ValueOf(tt.expected)
+				if expectedPtr.Kind() == reflect.Ptr && !expectedPtr.IsNil() {
+					assert.Equal(t, expectedPtr.Elem().Interface(), fieldVal.Elem().Interface())
+				} else {
+					assert.Equal(t, tt.expected, fieldVal.Elem().Interface())
+				}
+			} else {
+				assert.Equal(t, tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestSetFieldComplexSlices(t *testing.T) {
+	tests := []struct {
+		name        string
+		field       any
+		value       any
+		expected    any
+		expectError bool
+	}{
+		{
+			name:     "comma-separated with spaces",
+			field:    func() any { var s []string; return &s }(),
+			value:    " a , b , c ",
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "comma-separated bool slice",
+			field:    func() any { var s []bool; return &s }(),
+			value:    "true,false,1,0",
+			expected: []bool{true, false, true, false},
+		},
+		{
+			name:     "comma-separated float slice",
+			field:    func() any { var s []float64; return &s }(),
+			value:    "1.1,2.2,3.3",
+			expected: []float64{1.1, 2.2, 3.3},
+		},
+		{
+			name:        "invalid comma-separated int slice",
+			field:       func() any { var s []int; return &s }(),
+			value:       "1,not_a_number,3",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetField(tt.field, tt.value)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			fieldVal := reflect.ValueOf(tt.field).Elem()
+			actual := fieldVal.Interface()
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestSetFieldNumericConversions(t *testing.T) {
+	tests := []struct {
+		name     string
+		field    any
+		value    any
+		expected any
+	}{
+		// Int conversions
+		{
+			name:     "uint to int",
+			field:    func() any { var i int; return &i }(),
+			value:    uint(42),
+			expected: 42,
+		},
+		{
+			name:     "int32 to int64",
+			field:    func() any { var i int64; return &i }(),
+			value:    int32(42),
+			expected: int64(42),
+		},
+		{
+			name:     "float64 to int",
+			field:    func() any { var i int; return &i }(),
+			value:    42.9,
+			expected: 42,
+		},
+
+		// Uint conversions
+		{
+			name:     "int to uint",
+			field:    func() any { var u uint; return &u }(),
+			value:    42,
+			expected: uint(42),
+		},
+		{
+			name:     "float to uint",
+			field:    func() any { var u uint; return &u }(),
+			value:    42.9,
+			expected: uint(42),
+		},
+
+		// Float conversions
+		{
+			name:     "int to float32",
+			field:    func() any { var f float32; return &f }(),
+			value:    42,
+			expected: float32(42),
+		},
+		{
+			name:     "uint to float64",
+			field:    func() any { var f float64; return &f }(),
+			value:    uint(42),
+			expected: float64(42),
+		},
+		{
+			name:     "float32 to float64",
+			field:    func() any { var f float64; return &f }(),
+			value:    float32(3.14),
+			expected: float64(float32(3.14)), // Account for precision loss
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetField(tt.field, tt.value)
+			assert.NoError(t, err)
+
+			fieldVal := reflect.ValueOf(tt.field).Elem()
+			actual := fieldVal.Interface()
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
 }
