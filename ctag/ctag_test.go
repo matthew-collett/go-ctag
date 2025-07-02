@@ -419,7 +419,6 @@ func TestFindNil(t *testing.T) {
 		{Key: "query", Name: "id", Field: nil},
 	}
 
-	// Find the first tag with a non-nil field
 	foundTag := tags.Find(func(tag CTag) bool {
 		return tag.Field != nil
 	})
@@ -427,14 +426,12 @@ func TestFindNil(t *testing.T) {
 	assert.Nil(t, foundTag)
 }
 
-// TestToSlice tests the ToSlice method of CTags.
 func TestToSlice(t *testing.T) {
 	tags := CTags{
 		{Key: "body", Name: "xml", Field: 10},
 		{Key: "path", Name: "param", Field: 42},
 	}
 
-	// Convert CTags to []CTag
 	tagSlice := tags.ToSlice()
 
 	expectedSlice := []CTag{
@@ -606,8 +603,6 @@ func (p *testProcessor) Process(field any, tag *CTag) error {
 type setFieldProcessor struct{}
 
 func (p *setFieldProcessor) Process(field any, tag *CTag) error {
-	// Test that SetField works with the field pointer
-	// Only process the "name" field to avoid type conflicts
 	if tag.Name == "name" {
 		return SetField(field, "test_value")
 	}
@@ -842,11 +837,9 @@ func TestSetField(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			// Get the actual value from the field
 			fieldVal := reflect.ValueOf(tt.field).Elem()
 			actual := fieldVal.Interface()
 
-			// Special handling for pointer comparisons
 			if fieldVal.Kind() == reflect.Ptr && fieldVal.IsNil() {
 				assert.Nil(t, tt.expected)
 			} else if fieldVal.Kind() == reflect.Ptr && !fieldVal.IsNil() {
@@ -1009,15 +1002,101 @@ func TestSetFieldWithProcessor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			processor := &setFieldProcessor{}
-			
-			// Process only the "name" tag
+
 			_, err := GetTagsAndProcess("test", &tt.input, processor)
 			assert.NoError(t, err)
-			
-			// Check that the Name field was modified to "test_value"
+
 			assert.Equal(t, "test_value", tt.input.Name)
-			// Check that Age field was not modified (no "age" tag processed)
 			assert.Equal(t, 25, tt.input.Age)
+		})
+	}
+}
+
+func TestSetFieldMapToStruct(t *testing.T) {
+	type NestedStruct struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	tests := []struct {
+		name     string
+		field    any
+		value    any
+		expected any
+	}{
+		{
+			name:  "map to struct with json tags",
+			field: func() any { var s NestedStruct; return &s }(),
+			value: map[string]interface{}{
+				"name": "John",
+				"age":  float64(30),
+			},
+			expected: NestedStruct{Name: "John", Age: 30},
+		},
+		{
+			name:  "map to struct with field names",
+			field: func() any { var s NestedStruct; return &s }(),
+			value: map[string]interface{}{
+				"Name": "Jane",
+				"Age":  25,
+			},
+			expected: NestedStruct{Name: "Jane", Age: 25},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetField(tt.field, tt.value)
+			assert.NoError(t, err)
+
+			fieldVal := reflect.ValueOf(tt.field).Elem()
+			actual := fieldVal.Interface()
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestSetFieldSliceConversion(t *testing.T) {
+	tests := []struct {
+		name     string
+		field    any
+		value    any
+		expected any
+	}{
+		{
+			name:     "interface slice to string slice",
+			field:    func() any { var s []string; return &s }(),
+			value:    []interface{}{"a", "b", "c"},
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "interface slice to int slice",
+			field:    func() any { var s []int; return &s }(),
+			value:    []interface{}{float64(1), float64(2), float64(3)}, // JSON numbers
+			expected: []int{1, 2, 3},
+		},
+		{
+			name:     "interface slice to bool slice",
+			field:    func() any { var s []bool; return &s }(),
+			value:    []interface{}{true, false, true},
+			expected: []bool{true, false, true},
+		},
+		{
+			name:     "mixed interface slice to string slice",
+			field:    func() any { var s []string; return &s }(),
+			value:    []interface{}{42, true, "test"},
+			expected: []string{"42", "true", "test"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetField(tt.field, tt.value)
+			assert.NoError(t, err)
+
+			fieldVal := reflect.ValueOf(tt.field).Elem()
+			actual := fieldVal.Interface()
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }

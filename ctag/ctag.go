@@ -124,7 +124,7 @@ func GetTags(key string, data any) (CTags, error) {
 //
 //	type MyProcessor struct{}
 //
-//	func (p *MyProcessor) Process(tag CTag) error {
+//	func (p *MyProcessor) Process(field any, tag *CTag) error {
 //	    // Custom processing logic here
 //	    return nil
 //	}
@@ -310,59 +310,11 @@ func (t *CTag) String() string {
 	return fmt.Sprintf("CTag(Key=%s, Name=%s, Options=[%s], Field=%+v)", t.Key, t.Name, options, t.Field)
 }
 
-// SetField attempts to convert a value to the appropriate type and set it on the field pointer.
-// This helper function reduces boilerplate code in TagProcessor implementations by handling
-// common type conversions automatically.
-//
-// The field parameter should be a pointer to the actual struct field (same as TagProcessor.Process receives).
-// The value parameter can be any type - the function will attempt to convert it to match the field's type.
-//
-// Supported conversions:
-//   - String to any basic type (int, float, bool, etc.)
-//   - Numeric types to other numeric types
-//   - Any type to string via fmt.Sprintf
-//   - Slice and map types (direct assignment if types match)
-//   - Pointer types (allocates new pointer if needed)
-//   - Interface types (direct assignment)
-//
-// Parameters:
-//
-//	field - a pointer to the struct field to set (must be a pointer)
-//	value - the value to convert and assign to the field
-//
-// Returns:
-//
-//	An error if the conversion fails or if field is not a pointer.
-//
-// Example usage:
-//
-//	type QueryProcessor struct {
-//	    req *http.Request
-//	}
-//
-//	func (p *QueryProcessor) Process(field any, tag *CTag) error {
-//	    value := p.req.URL.Query().Get(tag.Name)
-//	    if value == "" {
-//	        return nil
-//	    }
-//	    return ctag.SetField(field, value)
-//	}
-//
-//	// Instead of writing 20+ type cases manually:
-//	switch f := field.(type) {
-//	case *string:
-//	    *f = value
-//	case *int:
-//	    intVal, err := strconv.Atoi(value)
-//	    // ... handle error and assignment
-//	// ... 18+ more cases
-//	}
 func SetField(field any, value any) error {
 	fieldVal := reflect.ValueOf(field)
 	if fieldVal.Kind() != reflect.Ptr {
 		return fmt.Errorf("ctag: field must be a pointer, got %T", field)
 	}
-
 	if fieldVal.IsNil() {
 		return fmt.Errorf("ctag: field pointer is nil")
 	}
@@ -375,7 +327,6 @@ func SetField(field any, value any) error {
 	return setValue(fieldElem, value)
 }
 
-// setValue handles the actual type conversion and assignment
 func setValue(fieldVal reflect.Value, value any) error {
 	if value == nil {
 		fieldVal.Set(reflect.Zero(fieldVal.Type()))
@@ -390,25 +341,21 @@ func setValue(fieldVal reflect.Value, value any) error {
 		return nil
 	}
 
-	if fieldType.Kind() == reflect.Ptr {
+	switch fieldType.Kind() {
+	case reflect.Ptr:
 		return setPointerValue(fieldVal, value)
-	}
-
-	if fieldType.Kind() == reflect.Interface {
+	case reflect.Interface:
 		fieldVal.Set(valueVal)
 		return nil
-	}
-
-	if fieldType.Kind() == reflect.Slice {
+	case reflect.Struct:
+		return setStructValue(fieldVal, value)
+	case reflect.Slice:
 		return setSliceValue(fieldVal, value)
-	}
-
-	if fieldType.Kind() == reflect.Map {
-		if valueVal.Type().AssignableTo(fieldType) {
-			fieldVal.Set(valueVal)
-			return nil
-		}
+	case reflect.Map:
 		return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldType)
+	case reflect.String:
+		fieldVal.SetString(fmt.Sprintf("%v", value))
+		return nil
 	}
 
 	if valueVal.Kind() == reflect.String {
@@ -419,28 +366,16 @@ func setValue(fieldVal reflect.Value, value any) error {
 		return setNumericValue(fieldVal, valueVal)
 	}
 
-	if fieldType.Kind() == reflect.String {
-		fieldVal.SetString(fmt.Sprintf("%v", value))
-		return nil
-	}
-
 	return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldType)
 }
 
-// setPointerValue handles setting pointer field values
 func setPointerValue(fieldVal reflect.Value, value any) error {
-	fieldType := fieldVal.Type()
-	elemType := fieldType.Elem()
-
 	if fieldVal.IsNil() {
-		newPtr := reflect.New(elemType)
-		fieldVal.Set(newPtr)
+		fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
 	}
-
 	return setValue(fieldVal.Elem(), value)
 }
 
-// setSliceValue handles setting slice field values
 func setSliceValue(fieldVal reflect.Value, value any) error {
 	valueVal := reflect.ValueOf(value)
 
@@ -449,12 +384,14 @@ func setSliceValue(fieldVal reflect.Value, value any) error {
 		return nil
 	}
 
-	if valueVal.Kind() == reflect.String {
+	switch valueVal.Kind() {
+	case reflect.String:
 		return setSliceFromString(fieldVal, valueVal.String())
+	case reflect.Slice:
+		return setSliceFromSlice(fieldVal, valueVal)
 	}
 
-	elemType := fieldVal.Type().Elem()
-	if valueVal.Type().AssignableTo(elemType) {
+	if valueVal.Type().AssignableTo(fieldVal.Type().Elem()) {
 		slice := reflect.MakeSlice(fieldVal.Type(), 1, 1)
 		slice.Index(0).Set(valueVal)
 		fieldVal.Set(slice)
@@ -464,7 +401,6 @@ func setSliceValue(fieldVal reflect.Value, value any) error {
 	return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldVal.Type())
 }
 
-// setSliceFromString converts a comma-separated string to a slice
 func setSliceFromString(fieldVal reflect.Value, str string) error {
 	if str == "" {
 		fieldVal.Set(reflect.MakeSlice(fieldVal.Type(), 0, 0))
@@ -475,9 +411,7 @@ func setSliceFromString(fieldVal reflect.Value, str string) error {
 	slice := reflect.MakeSlice(fieldVal.Type(), len(parts), len(parts))
 
 	for i, part := range parts {
-		part = strings.TrimSpace(part)
-		elem := slice.Index(i)
-		if err := setValue(elem, part); err != nil {
+		if err := setValue(slice.Index(i), strings.TrimSpace(part)); err != nil {
 			return fmt.Errorf("ctag: error converting slice element %d: %w", i, err)
 		}
 	}
@@ -486,7 +420,6 @@ func setSliceFromString(fieldVal reflect.Value, str string) error {
 	return nil
 }
 
-// setFromString converts a string value to the target field type
 func setFromString(fieldVal reflect.Value, str string) error {
 	switch fieldVal.Kind() {
 	case reflect.String:
@@ -521,7 +454,6 @@ func setFromString(fieldVal reflect.Value, str string) error {
 	return nil
 }
 
-// setNumericValue converts between numeric types
 func setNumericValue(fieldVal reflect.Value, valueVal reflect.Value) error {
 	switch fieldVal.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -563,7 +495,6 @@ func setNumericValue(fieldVal reflect.Value, valueVal reflect.Value) error {
 	return nil
 }
 
-// isNumeric checks if a reflect.Kind represents a numeric type
 func isNumeric(k reflect.Kind) bool {
 	switch k {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -574,7 +505,94 @@ func isNumeric(k reflect.Kind) bool {
 	return false
 }
 
-// getTags is a helper function that recursively fetches and optionally processes tags from struct fields.
+func setStructValue(fieldVal reflect.Value, value any) error {
+	valueVal := reflect.ValueOf(value)
+
+	if valueVal.Type().AssignableTo(fieldVal.Type()) {
+		fieldVal.Set(valueVal)
+		return nil
+	}
+
+	if valueVal.Kind() == reflect.Map && valueVal.Type().Key().Kind() == reflect.String {
+		return setStructFromMap(fieldVal, valueVal)
+	}
+
+	return fmt.Errorf("ctag: cannot convert %T to %v", value, fieldVal.Type())
+}
+
+func setStructFromMap(structVal reflect.Value, mapVal reflect.Value) error {
+	structType := structVal.Type()
+
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i)
+		fieldVal := structVal.Field(i)
+
+		if field.PkgPath != "" || !fieldVal.CanSet() {
+			continue
+		}
+
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == "-" {
+			continue
+		}
+
+		tagName := field.Name
+		if jsonTag != "" {
+			if parts := strings.Split(jsonTag, ","); parts[0] != "" {
+				tagName = parts[0]
+			}
+		}
+
+		var mapValue interface{}
+		var found bool
+
+		if mapKey := reflect.ValueOf(tagName); mapVal.MapIndex(mapKey).IsValid() {
+			mapValue = mapVal.MapIndex(mapKey).Interface()
+			found = true
+		} else if tagName != field.Name {
+			if fieldKey := reflect.ValueOf(field.Name); mapVal.MapIndex(fieldKey).IsValid() {
+				mapValue = mapVal.MapIndex(fieldKey).Interface()
+				found = true
+			}
+		}
+
+		if found {
+			if err := SetField(fieldVal.Addr().Interface(), mapValue); err != nil {
+				return fmt.Errorf("ctag: error setting field %s: %w", field.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func setSliceFromSlice(fieldVal reflect.Value, sourceSlice reflect.Value) error {
+	if sourceSlice.Len() == 0 {
+		fieldVal.Set(reflect.MakeSlice(fieldVal.Type(), 0, 0))
+		return nil
+	}
+
+	slice := reflect.MakeSlice(fieldVal.Type(), sourceSlice.Len(), sourceSlice.Len())
+
+	for i := 0; i < sourceSlice.Len(); i++ {
+		sourceElem := sourceSlice.Index(i).Interface()
+		targetElem := slice.Index(i)
+
+		if targetElem.CanAddr() {
+			if err := SetField(targetElem.Addr().Interface(), sourceElem); err != nil {
+				return fmt.Errorf("ctag: error converting slice element %d: %w", i, err)
+			}
+		} else {
+			if err := setValue(targetElem, sourceElem); err != nil {
+				return fmt.Errorf("ctag: error converting slice element %d: %w", i, err)
+			}
+		}
+	}
+
+	fieldVal.Set(slice)
+	return nil
+}
+
 func getTags(key string, v reflect.Value, p TagProcessor) (CTags, error) {
 	var embedded []reflect.Value
 	var tags CTags
@@ -584,12 +602,10 @@ func getTags(key string, v reflect.Value, p TagProcessor) (CTags, error) {
 		f := t.Field(i)
 		fv := v.Field(i)
 
-		// unexported field
 		if f.PkgPath != "" && !f.Anonymous {
 			continue
 		}
 
-		// dereference pointers
 		for fv.Kind() == reflect.Ptr {
 			if fv.IsNil() {
 				break
@@ -598,13 +614,10 @@ func getTags(key string, v reflect.Value, p TagProcessor) (CTags, error) {
 		}
 
 		tagStr := f.Tag.Get(key)
-
-		// skip "-", "omitempty" if field is zero value
 		if tagStr == "-" || (strings.Contains(tagStr, "omitempty") && fv.IsZero()) {
 			continue
 		}
 
-		// embedded structs
 		if f.Anonymous {
 			if fv.IsValid() && fv.Kind() == reflect.Struct {
 				embedded = append(embedded, fv)
@@ -612,14 +625,12 @@ func getTags(key string, v reflect.Value, p TagProcessor) (CTags, error) {
 			continue
 		}
 
-		// parse tag and apply processor
 		if tagStr != "" {
 			tag := parse(key, tagStr, fv)
 			if p != nil {
 				originalField := v.Field(i)
 				if originalField.CanSet() {
-					fieldPtr := originalField.Addr().Interface()
-					if err := p.Process(fieldPtr, &tag); err != nil {
+					if err := p.Process(originalField.Addr().Interface(), &tag); err != nil {
 						return nil, fmt.Errorf("error processing field: %w", err)
 					}
 					tag.Field = originalField.Interface()
@@ -632,38 +643,33 @@ func getTags(key string, v reflect.Value, p TagProcessor) (CTags, error) {
 			tags = append(tags, tag)
 		}
 
-		// nested structs
 		if fv.Kind() == reflect.Struct && !f.Anonymous {
-			nestedTags, err := getTags(key, fv, p)
-			if err != nil {
+			if nestedTags, err := getTags(key, fv, p); err != nil {
 				return nil, err
+			} else {
+				tags = append(tags, nestedTags...)
 			}
-			tags = append(tags, nestedTags...)
 		}
 	}
 
-	// resolve embedded fields
 	for _, f := range embedded {
-		etags, err := getTags(key, f, p)
-		if err != nil {
+		if etags, err := getTags(key, f, p); err != nil {
 			return nil, err
+		} else {
+			tags = append(tags, etags...)
 		}
-		tags = append(tags, etags...)
 	}
 	return tags, nil
 }
 
-// parse converts a raw struct tag string into a CTag struct.
 func parse(key string, tagStr string, fv reflect.Value) CTag {
 	v := reflect.Indirect(fv)
-	tag := CTag{
-		Key: key,
-	}
+	tag := CTag{Key: key}
+
 	if v.IsValid() {
 		tag.Field = v.Interface()
-	} else {
-		tag.Field = nil
 	}
+
 	parts := strings.SplitN(tagStr, ",", 2)
 	tag.Name = parts[0]
 	if len(parts) > 1 {
