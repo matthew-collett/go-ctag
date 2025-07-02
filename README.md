@@ -23,6 +23,7 @@ The `ctag` package provides utilities for extracting and processing custom struc
 - Apply custom processing on fields based on their tags.
 - Assert types to field values.
 - Filter and find tags based on custom conditions.
+- Automatic type conversion with the `SetField` helper function.
 
 ## Installation
 
@@ -91,6 +92,55 @@ if err != nil {
     fmt.Printf("Error: %v\n", err)
 } else {
     fmt.Printf("Processed Tags: %+v\n", processedTags)
+}
+```
+</details>
+
+<details>
+<summary>Type Conversion with SetField</summary>
+
+The `SetField` helper function reduces boilerplate in TagProcessor implementations by automatically handling type conversions:
+
+```go
+import (
+    "net/http"
+    "github.com/matthew-collett/go-ctag/ctag"
+)
+
+type QueryProcessor struct {
+    req *http.Request
+}
+
+func (p *QueryProcessor) Process(field any, tag *ctag.CTag) error {
+    value := p.req.URL.Query().Get(tag.Name)
+    if value == "" {
+        return nil
+    }
+    // SetField automatically converts the string to the appropriate type
+    return ctag.SetField(field, value)
+}
+
+type Request struct {
+    ID     int      `query:"id"`
+    Name   string   `query:"name"`
+    Active bool     `query:"active"`
+    Tags   []string `query:"tags"`
+}
+
+func main() {
+    // Example URL: /api?id=42&name=John&active=true&tags=golang,web,api
+    req, _ := http.NewRequest("GET", "/api?id=42&name=John&active=true&tags=golang,web,api", nil)
+    
+    var request Request
+    processor := &QueryProcessor{req: req}
+    
+    _, err := ctag.GetTagsAndProcess("query", &request, processor)
+    if err != nil {
+        fmt.Printf("Error: %v\n", err)
+    } else {
+        fmt.Printf("Request: %+v\n", request)
+        // Output: Request: {ID:42 Name:John Active:true Tags:[golang web api]}
+    }
 }
 ```
 </details>
