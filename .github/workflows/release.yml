@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      new_tag: ${{ steps.tag.outputs.new_tag }}
 
     steps:
       - name: Checkout code
@@ -24,6 +26,7 @@ jobs:
         run: git config --global --add safe.directory /github/workspace
 
       - name: Bump version and push tag
+        id: tag
         uses: anothrNick/github-tag-action@1.67.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -33,12 +36,12 @@ jobs:
           MAJOR_STRING_TOKEN: 'perf:'
           MINOR_STRING_TOKEN: 'feat:'
           PATCH_STRING_TOKEN: 'fix:'
-          NONE_STRING_TOKEN: 'none:'
-          FORCE_WITHOUT_CHANGES: true
+          NONE_STRING_TOKEN: 'docs:,chore:'
+          FORCE_WITHOUT_CHANGES: false
 
   release:
     name: release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.new_tag != ''
     runs-on: ubuntu-latest
     needs: build
     
