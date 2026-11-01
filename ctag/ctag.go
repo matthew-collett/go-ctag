@@ -312,7 +312,7 @@ func (t *CTag) String() string {
 
 func SetField(field any, value any) error {
 	fieldVal := reflect.ValueOf(field)
-	if fieldVal.Kind() != reflect.Ptr {
+	if fieldVal.Kind() != reflect.Pointer {
 		return fmt.Errorf("ctag: field must be a pointer, got %T", field)
 	}
 	if fieldVal.IsNil() {
@@ -342,7 +342,7 @@ func setValue(fieldVal reflect.Value, value any) error {
 	}
 
 	switch fieldType.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return setPointerValue(fieldVal, value)
 	case reflect.Interface:
 		fieldVal.Set(valueVal)
@@ -606,7 +606,7 @@ func getTags(key string, v reflect.Value, p TagProcessor) (CTags, error) {
 			continue
 		}
 
-		for fv.Kind() == reflect.Ptr {
+		for fv.Kind() == reflect.Pointer {
 			if fv.IsNil() {
 				break
 			}

@@ -840,11 +840,11 @@ func TestSetField(t *testing.T) {
 			fieldVal := reflect.ValueOf(tt.field).Elem()
 			actual := fieldVal.Interface()
 
-			if fieldVal.Kind() == reflect.Ptr && fieldVal.IsNil() {
+			if fieldVal.Kind() == reflect.Pointer && fieldVal.IsNil() {
 				assert.Nil(t, tt.expected)
-			} else if fieldVal.Kind() == reflect.Ptr && !fieldVal.IsNil() {
+			} else if fieldVal.Kind() == reflect.Pointer && !fieldVal.IsNil() {
 				expectedPtr := reflect.ValueOf(tt.expected)
-				if expectedPtr.Kind() == reflect.Ptr && !expectedPtr.IsNil() {
+				if expectedPtr.Kind() == reflect.Pointer && !expectedPtr.IsNil() {
 					assert.Equal(t, expectedPtr.Elem().Interface(), fieldVal.Elem().Interface())
 				} else {
 					assert.Equal(t, tt.expected, fieldVal.Elem().Interface())
