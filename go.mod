@@ -1,6 +1,6 @@
 module github.com/matthew-collett/go-ctag
 
-go 1.22
+go 1.26.0
 
 require github.com/stretchr/testify v1.12.1
 
